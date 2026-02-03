@@ -1,0 +1,49 @@
+name: WYN → Shopify CSV Transform
+
+on:
+  # Run manually from the Actions tab
+  workflow_dispatch:
+    inputs:
+      wyn_file:
+        description: "WYN catalogue filename (must be in repo root)"
+        required: true
+        default: "WYN 31.01.26.xlsx"
+      reference_file:
+        description: "Shopify reference CSV filename"
+        required: true
+        default: "products_export_1.csv"
+
+  # Also run automatically when a new .xlsx is pushed
+  push:
+    paths:
+      - "*.xlsx"
+
+jobs:
+  transform:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install openpyxl
+
+      - name: Run transformer
+        run: |
+          python wyn_to_shopify.py \
+            --wyn "${{ github.event.inputs.wyn_file || 'WYN 31.01.26.xlsx' }}" \
+            --reference "${{ github.event.inputs.reference_file || 'products_export_1.csv' }}" \
+            --output shopify_import.csv
+
+      - name: Upload CSV as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: shopify-import-csv
+          path: shopify_import.csv
+          retention-days: 90
