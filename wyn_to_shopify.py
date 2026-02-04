@@ -14,6 +14,7 @@ import argparse
 import csv
 import html
 import math
+import os
 import re
 import sys
 from collections import OrderedDict
@@ -711,6 +712,17 @@ def main():
         default="shopify_import.csv",
         help="Path for output Shopify import CSV",
     )
+    parser.add_argument(
+        "--no-supabase",
+        action="store_true",
+        help="Skip Supabase sync even if credentials are set",
+    )
+    parser.add_argument(
+        "--triggered-by",
+        default="manual",
+        choices=["manual", "github_actions", "api"],
+        help="How this run was triggered (for audit trail)",
+    )
     args = parser.parse_args()
 
     print(f"Loading Shopify reference: {args.reference}")
@@ -758,6 +770,28 @@ def main():
                 print(f"  {e}")
         else:
             print(f"\nValidation passed: {row_count} data rows, {num_cols} columns each")
+
+    # Supabase sync (if credentials are available)
+    supabase_url = os.environ.get("SUPABASE_URL", "").strip()
+    supabase_key = os.environ.get("SUPABASE_SERVICE_KEY", "").strip()
+
+    if args.no_supabase:
+        print("\n  Supabase sync: skipped (--no-supabase flag)")
+    elif not supabase_url or not supabase_key:
+        print("\n  Supabase sync: skipped (no SUPABASE_URL / SUPABASE_SERVICE_KEY)")
+    else:
+        try:
+            from supabase_sync import run_sync
+            run_sync(
+                products=products,
+                csv_path=args.output,
+                source_file=args.wyn,
+                reference_file=args.reference,
+                triggered_by=args.triggered_by,
+            )
+        except Exception as e:
+            print(f"\n  Supabase sync: failed ({e})")
+            print("  (CSV was still generated successfully)")
 
     print("Done!")
 
